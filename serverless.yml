@@ -9,20 +9,6 @@ provider:
 
 functions:
 
-  hello:
-    handler: handler.hello
-    events:
-      - http:
-          method: get
-          path: /hello
-  
-  getDistricts:
-    handler: handler.getDistricts
-    events:
-      - http:
-          method: get
-          path: /getDistricts
-  
   getDistrictsForState:
     handler: handler.getDistrictsForState
     events:

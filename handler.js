@@ -25,66 +25,6 @@ const getGeoJsonSqlFor = (sql) => {
           ) features;`
 }
 
-module.exports.hello = async (event) => {
-  return {
-    statusCode: 200,
-    body: JSON.stringify(
-      {
-        message: 'Hooray! It works!',
-        input: event,
-      },
-      null,
-      2
-    ),
-  };
-
-  // Use this code if you don't use the http event with the LAMBDA-PROXY integration
-  // return { message: 'Go Serverless v1.0! Your function executed successfully!', event };
-};
-
-module.exports.getDistricts = (event, context, callback) => {
-
-  const client = new Client(dbConfig)
-  client.connect()
-
-  let sql = 
-  `SELECT id, geom, statefp, cd116fp, affgeoid, geoid, lsad, cdsessn, aland, awater
-   FROM public.cb_2018_us_cd116_20m
-   limit 1;
-  `.trim()
-
-  sql = getGeoJsonSqlFor(sql)
-
-  client
-    .query(sql, null)
-    .then((res) => {
-      
-      const response = {
-        statusCode: 200,
-        headers: {
-          "Access-Control-Allow-Origin": '*',
-          "Access-Control-Allow-Methods": 'GET'
-        },
-        body: JSON.stringify(res.rows[0]['jsonb_build_object']),
-      }
-
-      callback(null, response)
-
-      client.end()
-    })
-    .catch((error) => {
-
-      const errorResponse = {
-        statusCode: error.statusCode || 500,
-        body: `${error}`,
-      }
-
-      callback(null, errorResponse)
-
-      client.end()
-    })
-}
-
 module.exports.getDistrictsForState = (event, context, callback) => {
 
   let sql = 
