@@ -19,14 +19,21 @@ const containsLongitudeLatitude = (columns) => {
   return false
 }
 
-const validateState = (name) => {
+const validateStusps = (stusps) => {
   return states.reduce((acc, st) => {
 
-    if(states.find(st => st.name === name))
+    if(states.find(st => st.stusps === stusps))
       acc = true
     
     return acc
   }, false)
+}
+
+const validateType = (type) => {
+  if(type === 'point' || type === 'county')
+    return true
+  else
+    return false
 }
 
 const validateCsvData = (csvData) => {
@@ -62,23 +69,33 @@ const validateCsvData = (csvData) => {
 
 }
 
-const getGeoSQL = (type) => {
+const getGeoJsonSqlFor = (sql) => {
+  
+  //remove trailing ; if present
+  if(sql.charAt(sql.length - 1) === ';') sql = sql.substr(0, sql.length - 1)
+  
+  return `SELECT jsonb_build_object(
+            'type', 'FeatureCollection',
+            'features', jsonb_agg(features.feature)
+          )
+          FROM 
+          (
+            SELECT jsonb_build_object(
+            'type', 'Feature',
+            'geometry', ST_AsGeoJSON(geom,3)::jsonb,
+            'properties', to_jsonb(inputs) - 'geom'
+          ) AS feature
+          FROM 
+            (
+              ${sql}
+            ) inputs
+          ) features;`
+}
 
-  let counties = 
-  `
-  SELECT jsonb_build_object(
-    'type', 'FeatureCollection',
-    'features', jsonb_agg(features.feature)
-  )
-  FROM (
-    SELECT jsonb_build_object(
-    'type', 'Feature',
-    'geometry', ST_AsGeoJSON(geom,3)::jsonb,
-    'properties', to_jsonb(inputs) - 'geom'
-  ) AS feature
-  FROM 
-    (
-    SELECT 
+const getSqlFor = (type) => {
+
+  let countiesSql = 
+    `SELECT 
       county.geom,
       #columnsStringWithPrefix
       ,max(pop.type) as type,
@@ -89,7 +106,7 @@ const getGeoSQL = (type) => {
         ELSE max(pop.pop_2019) / count(geo_points.geom) 
       END
       AS persons_per_location
-    FROM county county
+    FROM cb_2018_us_county_20m county
     LEFT JOIN
     (
       SELECT 
@@ -99,31 +116,17 @@ const getGeoSQL = (type) => {
     )
     AS geo_points on ST_WITHIN(geo_points.geom, county.geom)
     LEFT JOIN population_county pop on pop.name = county.name
-    WHERE county.statefp = $1
-    AND pop.statefp =  $1
+    JOIN cb_2018_us_state_20m state on state.statefp = county.statefp
+    WHERE state.stusps = $1
+    AND pop.statefp = state.statefp
     GROUP BY county.geom, county.name
-    ORDER BY persons_per_location desc
-    ) inputs
-  ) features;
-  `
-  let points = 
-  `
-  SELECT jsonb_build_object(
-    'type', 'FeatureCollection',
-    'features', jsonb_agg(features.feature)
-  )
-  FROM (
-    SELECT jsonb_build_object(
-    'type', 'Feature',
-    'geometry', ST_AsGeoJSON(geom,3)::jsonb,
-    'properties', to_jsonb(inputs) - 'geom'
-  ) AS feature
-  FROM 
-    (
-      SELECT
+    ORDER BY persons_per_location desc`
+
+  let pointsSql = 
+      `SELECT
         geo_points.geom,
         #columnsStringWithPrefix
-      FROM state state
+      FROM cb_2018_us_state_20m state
       LEFT JOIN
         (
           SELECT 
@@ -131,16 +134,14 @@ const getGeoSQL = (type) => {
             #columnsStringWithoutPrefix
           FROM #targetTableName
         ) AS geo_points on ST_WITHIN(geo_points.geom, state.geom)
-      WHERE state.name = $1
-    ) inputs
-  ) features;
-  `
+      WHERE state.stusps = $1`
+
   if(type === 'county')
-    return counties
+    return getGeoJsonSqlFor(countiesSql)
   else if(type === 'point')
-    return points
+    return getGeoJsonSqlFor(pointsSql)
   else
     return null
 }
 
-module.exports = { isSuspicious, containsLongitudeLatitude, validateState, validateCsvData, getGeoSQL }
+module.exports = { isSuspicious, containsLongitudeLatitude, validateType, validateStusps, validateCsvData, getSqlFor }
