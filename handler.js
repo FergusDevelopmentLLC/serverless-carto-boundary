@@ -1,5 +1,5 @@
 'use strict';
-const dbConfig = require('./db')
+const dbConfig = require('./config/db')
 const { Client } = require('pg')
 
 const getGeoJsonSqlFor = (sql) => {
