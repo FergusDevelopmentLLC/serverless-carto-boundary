@@ -17,5 +17,12 @@ functions:
           method: get
           path: /districtsForState/{state_abbrev}
 
+  getGeoJsonForCsv:
+    handler: handler.getGeoJsonForCsv
+    events:
+      - http:
+          method: post
+          path: /getGeoJsonForCsv
+
 plugins:
   - serverless-offline
