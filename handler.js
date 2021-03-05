@@ -1,34 +1,10 @@
 'use strict';
-const dbConfig = require('./config/db')
 const { Client } = require('pg')
 const fastcsv = require('fast-csv')
 const format = require('pg-format')
 const request = require('request')
-//const states = require('./states.js').states
-const utils = require('./utils.js')
-
-const getGeoJsonSqlFor = (sql) => {
-  
-  //remove trailing ; if present
-  if(sql.charAt(sql.length - 1) === ';') sql = sql.substr(0, sql.length - 1)
-  
-  return `SELECT jsonb_build_object(
-            'type', 'FeatureCollection',
-            'features', jsonb_agg(features.feature)
-          )
-          FROM 
-          (
-            SELECT jsonb_build_object(
-            'type', 'Feature',
-            'geometry', ST_AsGeoJSON(geom,3)::jsonb,
-            'properties', to_jsonb(inputs) - 'geom'
-          ) AS feature
-          FROM 
-            (
-              ${sql}
-            ) inputs
-          ) features;`
-}
+const dbConfig = require('./config/db')
+const utils = require('./config/utils.js')
 
 module.exports.getDistrictsForState = (event, context, callback) => {
 
@@ -73,105 +49,129 @@ module.exports.getDistrictsForState = (event, context, callback) => {
     })
 }
 
-module.exports.getGeoJsonFor = (csvUrl, stateName, type) => {
+module.exports.getGeoJsonForCsv = (event, context, callback) => {
 
-  return new Promise((resolve, reject) => {
-    
-    const targetTableName = `csv_import_${ Date.now().toString() }`
-    const insertData = []
-    const csvData = []
+  const handleError = (error, callback) => {
 
-    const client = new Client()
-    
-    client.connect()
-      .then(() => {
-        
-        fastcsv.parseStream(request(csvUrl))
-          .on('error', error => reject(`Error occurred while parsing csv: ${error}`))
-          .on('data', (data) => csvData.push(data))
-          .on('end', () => {
+    const errorResponse = {
+      statusCode: error.statusCode || 500,
+      body: {Error: error},
+    }
 
-            if(!utils.validateState(stateName)){
-              reject(`Error: State name is invalid`)
-              return
-            }
+    callback(null, JSON.stringify(errorResponse))
 
-            let csvError = utils.validateCsvData(csvData)
-            if(csvError) {
-              reject(`Error: ${csvError}`)
-              return
-            }
-              
-            const header = csvData.shift()//the first line in the csv are the columns
-            
-            csvData.forEach(columnValues => insertData.push([...columnValues]))
+  }
 
-            const columnsString = header.map(column => `${column} character varying`).join(",")
-
-            client.query(`CREATE TABLE ${targetTableName} ( ${columnsString} ) WITH ( OIDS=FALSE );`)
-              .then(() => {
-                
-                client.query(`ALTER TABLE ${targetTableName} OWNER TO geodevdb;`)
-                  .then(() => { 
-
-                    const insertStatements = format(`INSERT INTO ${targetTableName} (longitude, latitude, name) VALUES %L`, insertData)
-                    
-                    client.query(insertStatements)
-                      .then(() => {
-
-                        const statefp = states.find(st => st.name === stateName).statefp
-                        const columnsStringWithoutPrefix = header.map(column => `${column}`).join(",")
-
-                        let columnsStringWithPrefix
-                        let stateArray
-                        
-                        if(type == 'county') {
-                          columnsStringWithPrefix = header.map(column => `max(geo_points.${column})`).join(",")
-                          stateArray = [statefp]
-                        }
-                        else {
-                          columnsStringWithPrefix = header.map(column => `geo_points.${column}`).join(",")
-                          stateArray = [stateName]
-                        }
-                        
-                        let geoSQL = utils.getGeoSQL(type) 
-
-                        geoSQL = geoSQL
-                                  .replace('#columnsStringWithPrefix', columnsStringWithPrefix)
-                                  .replace('#columnsStringWithoutPrefix', columnsStringWithoutPrefix)
-                                  .replace('#targetTableName', targetTableName)
-
-                        client.query(geoSQL, stateArray)
-                          .then((geoResult) => {
-                            resolve(geoResult.rows[0]['jsonb_build_object'])
-                          })
-                          .catch((error) => {
-                            reject(error)
-                            return
-                          })
-                      })
-                      .catch((error) => {
-                        reject(error)
-                        return
-                      })
-
-                  })
-                  .catch((error) => {
-                    reject(error)
-                    return
-                  }) 
-              })
-              .catch((error) => {
-                reject(error)
-                return
-              })
-          })
-      
-      })
-      .catch((error) => {
-        reject("Database connection error")
-        return
-      })
+  let body = JSON.parse(event.body)
   
-  })
+  const stusps = body.state_abbrev
+  const csvUrl = body.csvUrl
+  const type = body.type
+
+  const targetTableName = `csv_import_${ Date.now().toString() }`
+  const insertData = []
+  const csvData = []
+
+  const client = new Client(dbConfig)
+    
+  client.connect()
+    .then(() => {
+      
+      fastcsv.parseStream(request(csvUrl))
+        .on('error', error => reject(`Error occurred while parsing csv: ${error}`))
+        .on('data', (data) => csvData.push(data))
+        .on('end', () => {
+
+          if(!utils.validateType(type)){
+            handleError("Invalid type: type must be 'point' or 'county'", callback)
+            client.end()
+          }
+
+          if(!utils.validateStusps(stusps)){
+            handleError("State abbreviation is invalid", callback)
+            client.end()
+          }
+          
+          let csvError = utils.validateCsvData(csvData)
+          if(csvError) {
+            handleError(csvError, callback)
+            client.end()
+          }
+          
+          const header = csvData.shift()//the first line in the csv are the columns
+          
+          csvData.forEach(columnValues => insertData.push([...columnValues]))
+
+          const columnsString = header.map(column => `${column} character varying`).join(",")
+          const columnsStringWithoutPrefix = header.map(column => `${column}`).join(",")
+
+          client.query(`CREATE TABLE ${targetTableName} ( ${columnsString} ) WITH ( OIDS=FALSE );`)
+            .then(() => {
+              
+              client.query(`ALTER TABLE ${targetTableName} OWNER TO awspostgres;`)
+                .then(() => { 
+
+                  const insertStatements = format(`INSERT INTO ${targetTableName} ( ${columnsStringWithoutPrefix} ) VALUES %L`, insertData)
+                  
+                  client.query(insertStatements)
+                    .then(() => {
+
+                      let columnsStringWithPrefix
+                      
+                      if(type == 'county')
+                        columnsStringWithPrefix = header.map(column => `max(geo_points.${column})`).join(",")
+                      else
+                        columnsStringWithPrefix = header.map(column => `geo_points.${column}`).join(",")
+                      
+                      let geoSQL = utils.getSqlFor(type) 
+
+                      geoSQL = geoSQL
+                                .replace('#columnsStringWithPrefix', columnsStringWithPrefix)
+                                .replace('#columnsStringWithoutPrefix', columnsStringWithoutPrefix)
+                                .replace('#targetTableName', targetTableName)
+
+                      client.query(geoSQL, [stusps])
+                        .then((geoResult) => {
+
+                          const response = {
+                            statusCode: 200,
+                            headers: {
+                              "Access-Control-Allow-Origin": '*',
+                              "Access-Control-Allow-Methods": 'GET'
+                            },
+                            body: JSON.stringify(geoResult.rows[0]['jsonb_build_object']),
+                          }
+
+                          callback(null, response)
+
+                          client.end()
+
+                        })
+                        .catch((error) => {
+                          handleError(error, callback)
+                          client.end()
+                        })
+                    })
+                    .catch((error) => {
+                      handleError(error, callback)
+                      client.end()
+                    })
+
+                })
+                .catch((error) => {
+                  handleError(error, callback)
+                  client.end()
+                }) 
+            })
+            .catch((error) => {
+              handleError(error, callback)
+              client.end()
+            })
+        })
+    
+    })
+    .catch((error) => {
+      handleError(error, callback)
+      client.end()
+    })
 }
