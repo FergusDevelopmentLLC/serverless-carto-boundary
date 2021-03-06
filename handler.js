@@ -6,49 +6,6 @@ const request = require('request')
 const dbConfig = require('./config/db')
 const utils = require('./config/utils.js')
 
-module.exports.getDistrictsForState = (event, context, callback) => {
-
-  let sql = 
-  `SELECT districts.*, states.stusps as state_abbrev, states.name as state_name
-   FROM cb_2018_us_state_20m states
-   JOIN cb_2018_us_cd116_20m districts on districts.statefp = states.statefp
-   WHERE stusps = $1`.trim()
-
-  sql = getGeoJsonSqlFor(sql)
-
-  const client = new Client(dbConfig)
-  client.connect()
-
-  client
-    .query(sql, [event.pathParameters.state_abbrev])
-    .then((res) => {
-      
-      const response = {
-        statusCode: 200,
-        headers: {
-          "Access-Control-Allow-Origin": '*',
-          "Access-Control-Allow-Methods": 'GET'
-        },
-        body: JSON.stringify(res.rows[0]['jsonb_build_object']),
-      }
-
-      callback(null, response)
-
-      client.end()
-    })
-    .catch((error) => {
-
-      const errorResponse = {
-        statusCode: error.statusCode || 500,
-        body: `${error}`,
-      }
-
-      callback(null, errorResponse)
-
-      client.end()
-    })
-}
-
 module.exports.getGeoJsonForCsv = (event, context, callback) => {
 
   const handleError = (error, callback) => {
@@ -59,119 +16,123 @@ module.exports.getGeoJsonForCsv = (event, context, callback) => {
     }
 
     callback(null, JSON.stringify(errorResponse))
-
+  
   }
 
-  let body = JSON.parse(event.body)
-  
+  const body = JSON.parse(event.body)
+
+  const description = body.description
   const stusps = body.state_abbrev
   const csvUrl = body.csvUrl
-  const type = body.type
-
   const targetTableName = `csv_import_${ Date.now().toString() }`
   const insertData = []
   const csvData = []
 
   const client = new Client(dbConfig)
-    
+  
   client.connect()
     .then(() => {
       
       fastcsv.parseStream(request(csvUrl))
-        .on('error', error => reject(`Error occurred while parsing csv: ${error}`))
+        .on('error', error => {
+          handleError(`fastcsv.parseStream error: ${error}`, callback)
+          client.end()
+        })
         .on('data', (data) => csvData.push(data))
         .on('end', () => {
 
-          if(!utils.validateType(type)){
-            handleError("Invalid type: type must be 'point' or 'county'", callback)
+          if(!utils.validateStusps(stusps)){
+            handleError(`state abbreviation is invalid: ${stusps}`, callback)
             client.end()
           }
 
-          if(!utils.validateStusps(stusps)){
-            handleError("State abbreviation is invalid", callback)
-            client.end()
-          }
-          
           let csvError = utils.validateCsvData(csvData)
           if(csvError) {
-            handleError(csvError, callback)
+            handleError(`validateCsvData error: ${csvError}`, callback)
             client.end()
           }
-          
-          const header = csvData.shift()//the first line in the csv are the columns
-          
-          csvData.forEach(columnValues => insertData.push([...columnValues]))
 
-          const columnsString = header.map(column => `${column} character varying`).join(",")
-          const columnsStringWithoutPrefix = header.map(column => `${column}`).join(",")
+          const columns = csvData.shift()//the first line in the csv contains the columns
+          columns.unshift('description')//add description column, will be inserted for each row
+          
+          csvData.forEach(columnValues => insertData.push([description, ...columnValues]))
 
-          client.query(`CREATE TABLE ${targetTableName} ( ${columnsString} ) WITH ( OIDS=FALSE );`)
+          const createTableColumnStr = columns.map(column => `${column} character varying`).join(",")
+          
+          client.query(`CREATE TABLE ${targetTableName} ( ${createTableColumnStr } ) WITH ( OIDS=FALSE );`)
             .then(() => {
               
               client.query(`ALTER TABLE ${targetTableName} OWNER TO awspostgres;`)
                 .then(() => { 
 
+                  const columnsStringWithoutPrefix = columns.map(column => `${column}`).join(",")
                   const insertStatements = format(`INSERT INTO ${targetTableName} ( ${columnsStringWithoutPrefix} ) VALUES %L`, insertData)
                   
                   client.query(insertStatements)
-                    .then(() => {
+                    .then(() => { 
 
-                      let columnsStringWithPrefix
-                      
-                      if(type == 'county')
-                        columnsStringWithPrefix = header.map(column => `max(geo_points.${column})`).join(",")
-                      else
-                        columnsStringWithPrefix = header.map(column => `geo_points.${column}`).join(",")
-                      
-                      let geoSQL = utils.getSqlFor(type) 
+                      let countyGeoSQL = utils.getSqlFor("county", columns) 
 
-                      geoSQL = geoSQL
-                                .replace('#columnsStringWithPrefix', columnsStringWithPrefix)
-                                .replace('#columnsStringWithoutPrefix', columnsStringWithoutPrefix)
-                                .replace('#targetTableName', targetTableName)
+                      countyGeoSQL = countyGeoSQL.replace('#targetTableName', targetTableName)
 
-                      client.query(geoSQL, [stusps])
-                        .then((geoResult) => {
+                      client.query(countyGeoSQL, [stusps])
+                        .then((counties) => {
 
-                          const response = {
-                            statusCode: 200,
-                            headers: {
-                              "Access-Control-Allow-Origin": '*',
-                              "Access-Control-Allow-Methods": 'GET'
-                            },
-                            body: JSON.stringify(geoResult.rows[0]['jsonb_build_object']),
-                          }
+                          let geojsonToReturn = counties.rows[0]['jsonb_build_object']//add counties polygons
+                          
+                          let pointsGeoSQL = utils.getSqlFor("point", columns) 
+                          
+                          pointsGeoSQL = pointsGeoSQL.replace('#targetTableName', targetTableName)
 
-                          callback(null, response)
+                          client.query(pointsGeoSQL, [stusps])
+                            .then((points) => {
 
-                          client.end()
+                              const pointsGeoJSON = points.rows[0]['jsonb_build_object']
 
+                              //combine the counties and points features
+                              geojsonToReturn.features = [...geojsonToReturn.features, ...pointsGeoJSON.features]
+
+                              const response = {
+                                statusCode: 200,
+                                headers: {
+                                  "Access-Control-Allow-Origin": '*',
+                                  "Access-Control-Allow-Methods": 'GET'
+                                },
+                                body: JSON.stringify(geojsonToReturn),
+                              }
+
+                              callback(null, response)
+                              
+                              client.end()
+                            })
+                            .catch((error) => {
+                              handleError(`pointsGeoSQL error: ${error}`, callback)
+                              client.end()
+                            })
                         })
                         .catch((error) => {
-                          handleError(error, callback)
+                          handleError(`pointsGeoSQL error: ${error}`, callback)
                           client.end()
                         })
                     })
                     .catch((error) => {
-                      handleError(error, callback)
+                      handleError(`insertStatements error: ${error}`, callback)
                       client.end()
                     })
-
                 })
                 .catch((error) => {
-                  handleError(error, callback)
+                  handleError(`ALTER TABLE error: ${error}`, callback)
                   client.end()
                 }) 
             })
             .catch((error) => {
-              handleError(error, callback)
+              handleError(`CREATE TABLE error: ${error}`, callback)
               client.end()
             })
         })
-    
     })
     .catch((error) => {
-      handleError(error, callback)
+      handleError(`database connection error: ${error}`, callback)
       client.end()
     })
 }
