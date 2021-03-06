@@ -92,12 +92,17 @@ const getGeoJsonSqlFor = (sql) => {
           ) features;`
 }
 
-const getSqlFor = (type) => {
+const getSqlFor = (type, header) => {
+
+  let columnsStringWithPrefix
+  type === 'county' ? columnsStringWithPrefix = header.map(column => `max(geo_points.${column})`).join(",") : columnsStringWithPrefix = header.map(column => `geo_points.${column}`).join(",")
+
+  const columnsStringWithoutPrefix = header.map(column => `${column}`).join(",")
 
   let countiesSql = 
     `SELECT 
       county.geom,
-      #columnsStringWithPrefix
+      ${columnsStringWithPrefix}
       ,max(pop.type) as type,
       COUNT(geo_points.geom) as geo_points_count,
       MAX(pop.pop_2019) as pop_2019,
@@ -111,7 +116,7 @@ const getSqlFor = (type) => {
     (
       SELECT 
         ST_SetSRID(ST_MAKEPOINT(longitude::double precision, latitude::double precision),4326) as geom, 
-        #columnsStringWithoutPrefix
+        ${columnsStringWithoutPrefix}
       FROM #targetTableName
     )
     AS geo_points on ST_WITHIN(geo_points.geom, county.geom)
@@ -125,17 +130,17 @@ const getSqlFor = (type) => {
   let pointsSql = 
       `SELECT
         geo_points.geom,
-        #columnsStringWithPrefix
+        ${columnsStringWithPrefix}
       FROM cb_2018_us_state_20m state
       LEFT JOIN
         (
           SELECT 
             ST_SetSRID(ST_MAKEPOINT(longitude::double precision, latitude::double precision),4326) as geom, 
-            #columnsStringWithoutPrefix
+            ${columnsStringWithoutPrefix}
           FROM #targetTableName
         ) AS geo_points on ST_WITHIN(geo_points.geom, state.geom)
       WHERE state.stusps = $1`
-
+  
   if(type === 'county')
     return getGeoJsonSqlFor(countiesSql)
   else if(type === 'point')
