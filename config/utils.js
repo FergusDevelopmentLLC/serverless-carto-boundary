@@ -94,6 +94,8 @@ const getGeoJsonSqlFor = (sql) => {
 
 const getSqlFor = (type, header) => {
 
+  header = header.filter((column) => column !== 'description')
+
   let columnsStringWithPrefix
   type === 'county' ? columnsStringWithPrefix = header.map(column => `max(geo_points.${column})`).join(",") : columnsStringWithPrefix = header.map(column => `geo_points.${column}`).join(",")
 
