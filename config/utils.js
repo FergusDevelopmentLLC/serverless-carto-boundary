@@ -94,18 +94,18 @@ const getGeoJsonSqlFor = (sql) => {
 
 const getSqlFor = (type, header) => {
 
-  header = header.filter((column) => column !== 'description')
+  header = header.filter((column) => column !== 'description')//do not return description column passed in
 
-  let columnsStringWithPrefix
-  type === 'county' ? columnsStringWithPrefix = header.map(column => `max(geo_points.${column})`).join(",") : columnsStringWithPrefix = header.map(column => `geo_points.${column}`).join(",")
+  const columnsStringWithoutPrefix = header.map(column => `${column}`).join(",")//build a comma delimited string of columns
 
-  const columnsStringWithoutPrefix = header.map(column => `${column}`).join(",")
-
-  let countiesSql = 
+  if(type === 'county') {
+    
+    let countiesSql = 
     `SELECT 
       county.geom,
-      ${columnsStringWithPrefix}
-      ,max(pop.type) as type,
+      county.name,
+      max(county.countyfp) as countyfp,
+      max(pop.type) as type,
       COUNT(geo_points.geom) as geo_points_count,
       MAX(pop.pop_2019) as pop_2019,
       CASE 
@@ -129,7 +129,11 @@ const getSqlFor = (type, header) => {
     GROUP BY county.geom, county.name
     ORDER BY persons_per_location desc`
 
-  let pointsSql = 
+    return getGeoJsonSqlFor(countiesSql)
+  }
+  else {
+    columnsStringWithPrefix = header.map(column => `geo_points.${column}`).join(",")
+    let pointsSql = 
       `SELECT
         geo_points.geom,
         ${columnsStringWithPrefix}
@@ -142,13 +146,9 @@ const getSqlFor = (type, header) => {
           FROM #targetTableName
         ) AS geo_points on ST_WITHIN(geo_points.geom, state.geom)
       WHERE state.stusps = $1`
-  
-  if(type === 'county')
-    return getGeoJsonSqlFor(countiesSql)
-  else if(type === 'point')
+
     return getGeoJsonSqlFor(pointsSql)
-  else
-    return null
+  }
 }
 
 module.exports = { isSuspicious, containsLongitudeLatitude, validateType, validateStusps, validateCsvData, getSqlFor }
