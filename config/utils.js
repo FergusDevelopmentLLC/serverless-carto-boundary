@@ -20,6 +20,7 @@ const containsLongitudeLatitude = (columns) => {
 }
 
 const validateStusps = (stusps) => {
+
   return states.reduce((acc, st) => {
 
     if(states.find(st => st.stusps === stusps))
