@@ -17,6 +17,44 @@ const handleError = (error, callback) => {
 
 }
 
+module.exports.getStates = (event, context, callback) => {
+
+  let sql = 
+  `SELECT stusps, name, statefp
+   FROM cb_2018_us_state_20m states
+   ORDER by stusps;`.trim()
+
+  const client = new Client(dbConfig)
+  
+  client.connect()
+    .then(() => {
+      client.query(sql, null)
+        .then((res) => {
+          
+          const response = {
+            statusCode: 200,
+            headers: {
+              "Access-Control-Allow-Origin": '*',
+              "Access-Control-Allow-Methods": 'GET'
+            },
+            body: JSON.stringify(res.rows),
+          }
+
+          callback(null, response)
+          client.end()
+        })
+        .catch((error) => {
+          handleError(`getStates query error: ${error}`, callback)
+          client.end()
+        })
+    })
+    .catch((error) => {
+      handleError(`database connection error: ${error}`, callback)
+      client.end()
+    })
+
+ }
+
 module.exports.getGeoJsonForCsv = (event, context, callback) => {
 
   const body = JSON.parse(event.body)
