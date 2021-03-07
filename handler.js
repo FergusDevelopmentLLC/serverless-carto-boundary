@@ -62,6 +62,7 @@ module.exports.getGeoJsonForCsv = (event, context, callback) => {
   const data_description = body.data_description
   const stusps = body.stusps
   const csvUrl = body.csvUrl
+  
   const targetTableName = `csv_import_${ Date.now().toString() }`
   const insertData = []
   const csvData = []
