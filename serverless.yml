@@ -11,12 +11,12 @@ provider:
 
 functions:
 
-  getDistrictsForState:
-    handler: handler.getDistrictsForState
+  getStates:
+    handler: handler.getStates
     events:
       - http:
           method: get
-          path: /districtsForState/{state_abbrev}
+          path: /getStates
 
   getGeoJsonForCsv:
     handler: handler.getGeoJsonForCsv
