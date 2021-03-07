@@ -6,18 +6,18 @@ const request = require('request')
 const dbConfig = require('./config/db')
 const utils = require('./config/utils.js')
 
-module.exports.getGeoJsonForCsv = (event, context, callback) => {
+const handleError = (error, callback) => {
 
-  const handleError = (error, callback) => {
-
-    const errorResponse = {
-      statusCode: error.statusCode || 500,
-      body: {Error: error},
-    }
-
-    callback(null, JSON.stringify(errorResponse))
-  
+  const errorResponse = {
+    statusCode: error.statusCode || 500,
+    body: {Error: error},
   }
+
+  callback(null, JSON.stringify(errorResponse))
+
+}
+
+module.exports.getGeoJsonForCsv = (event, context, callback) => {
 
   const body = JSON.parse(event.body)
 
