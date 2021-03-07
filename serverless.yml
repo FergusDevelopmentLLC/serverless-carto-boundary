@@ -11,14 +11,14 @@ provider:
 
 functions:
 
-  getStates:
+  states:
     handler: handler.getStates
     events:
       - http:
           method: get
-          path: /getStates
+          path: /states
 
-  getGeoJsonForCsv:
+  geoJsonForCsv:
     handler: handler.getGeoJsonForCsv
     events:
       - http:
