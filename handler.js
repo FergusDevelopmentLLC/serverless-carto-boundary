@@ -59,8 +59,8 @@ module.exports.getGeoJsonForCsv = (event, context, callback) => {
 
   const body = JSON.parse(event.body)
 
-  const description = body.description
-  const stusps = body.state_abbrev
+  const data_description = body.data_description
+  const stusps = body.stusps
   const csvUrl = body.csvUrl
   const targetTableName = `csv_import_${ Date.now().toString() }`
   const insertData = []
@@ -91,9 +91,9 @@ module.exports.getGeoJsonForCsv = (event, context, callback) => {
           }
 
           const columns = csvData.shift()//the first line in the csv contains the columns
-          columns.unshift('description')//add description column, will be inserted for each row
+          columns.unshift('data_description')//add data_description column, will be inserted for each row
           
-          csvData.forEach(columnValues => insertData.push([description, ...columnValues]))
+          csvData.forEach(columnValues => insertData.push([data_description, ...columnValues]))
 
           const createTableColumnStr = columns.map(column => `${column} character varying`).join(",")
           
