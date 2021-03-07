@@ -92,7 +92,7 @@ const getGeoJsonSqlFor = (sql) => {
 
 const getSqlFor = (type, header) => {
 
-  header = header.filter((column) => column !== 'description')//do not return description column passed in
+  header = header.filter((column) => column !== 'data_description')//do not return description column passed in
 
   const columnsStringWithoutPrefix = header.map(column => `${column}`).join(",")//build a comma delimited string of columns
 
