@@ -20,7 +20,7 @@ const handleError = (error, callback) => {
 module.exports.getStates = (event, context, callback) => {
 
   let sql = 
-  `SELECT stusps, name, statefp
+  `SELECT stusps, name, statefp, centroid_longitude, centroid_latitude
    FROM cb_2018_us_state_20m states
    ORDER by stusps;`.trim()
 
@@ -80,9 +80,11 @@ module.exports.getGeoJsonForCsv = (event, context, callback) => {
         .on('data', (data) => csvData.push(data))
         .on('end', () => {
 
-          if(!utils.validateStusps(stusps)){
-            handleError(`state abbreviation is invalid: ${stusps}`, callback)
-            client.end()
+          if(stusps && stusps !== 'all') {
+            if(!utils.validateStusps(stusps)){
+              handleError(`state abbreviation is invalid: ${stusps}`, callback)
+              client.end()
+            }
           }
 
           let csvError = utils.validateCsvData(csvData)
@@ -113,7 +115,9 @@ module.exports.getGeoJsonForCsv = (event, context, callback) => {
                       let countyGeoSQL = utils.getSqlFor("county", columns) 
 
                       countyGeoSQL = countyGeoSQL.replace('#targetTableName', targetTableName)
-
+                      
+                      if(stusps === 'all') countyGeoSQL = countyGeoSQL.replace('AND state.stusps = $1', '')
+                      
                       client.query(countyGeoSQL, [stusps])
                         .then((counties) => {
 
@@ -122,6 +126,8 @@ module.exports.getGeoJsonForCsv = (event, context, callback) => {
                           let pointsGeoSQL = utils.getSqlFor("point", columns) 
                           
                           pointsGeoSQL = pointsGeoSQL.replace('#targetTableName', targetTableName)
+
+                          if(stusps === 'all') pointsGeoSQL = pointsGeoSQL.replace('WHERE state.stusps = $1', '')
 
                           client.query(pointsGeoSQL, [stusps])
                             .then((points) => {
