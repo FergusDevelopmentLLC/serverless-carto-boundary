@@ -110,7 +110,7 @@ const getSqlFor = (type, header) => {
         WHEN count(geo_points.geom) = 0 THEN max(pop.pop_2019) 
         ELSE max(pop.pop_2019) / count(geo_points.geom) 
       END
-      AS persons_per_location
+      AS persons_per_point
     FROM cb_2018_us_county_20m county
     LEFT JOIN
     (
@@ -125,7 +125,7 @@ const getSqlFor = (type, header) => {
     WHERE state.stusps = $1
     AND pop.statefp = state.statefp
     GROUP BY county.geom, county.name
-    ORDER BY persons_per_location desc`
+    ORDER BY persons_per_point desc`
 
     return getGeoJsonSqlFor(countiesSql)
   }
