@@ -118,7 +118,10 @@ module.exports.getGeoJsonForCsv = (event, context, callback) => {
                       
                       if(stusps === 'all') countyGeoSQL = countyGeoSQL.replace('AND state.stusps = $1', '')
                       
-                      client.query(countyGeoSQL, [stusps])
+                      let stateToPass
+                      if(stusps !== 'all') stateToPass = [stusps]
+
+                      client.query(countyGeoSQL, stateToPass)
                         .then((counties) => {
 
                           let geojsonToReturn = counties.rows[0]['jsonb_build_object']//add counties polygons
@@ -129,7 +132,7 @@ module.exports.getGeoJsonForCsv = (event, context, callback) => {
 
                           if(stusps === 'all') pointsGeoSQL = pointsGeoSQL.replace('WHERE state.stusps = $1', '')
 
-                          client.query(pointsGeoSQL, [stusps])
+                          client.query(pointsGeoSQL, stateToPass)
                             .then((points) => {
 
                               const pointsGeoJSON = points.rows[0]['jsonb_build_object']
