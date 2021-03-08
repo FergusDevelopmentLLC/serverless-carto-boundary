@@ -122,7 +122,8 @@ const getSqlFor = (type, header) => {
     AS geo_points on ST_WITHIN(geo_points.geom, county.geom)
     LEFT JOIN population_county pop on pop.name = county.name
     JOIN cb_2018_us_state_20m state on state.statefp = county.statefp
-    WHERE state.stusps = $1
+    WHERE 1 = 1 
+    AND state.stusps = $1
     AND pop.statefp = state.statefp
     GROUP BY county.geom, county.name
     ORDER BY persons_per_point desc`
