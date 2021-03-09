@@ -21,7 +21,7 @@ module.exports.getStateForStusps = (event, context, callback) => {
 
   let sqlRaw = 
   ` SELECT 
-      ST_Simplify(geom,0.25) as geom,
+      ST_Simplify(geom,${ utils.simplificationParam }) as geom,
       stusps, 
       name,
       statefp,
