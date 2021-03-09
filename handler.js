@@ -20,10 +20,16 @@ const handleError = (error, callback) => {
 module.exports.getStateForStusps = (event, context, callback) => {
 
   let sqlRaw = 
-  `SELECT geom, stusps, name, statefp, centroid_longitude, centroid_latitude
-   FROM cb_2018_us_state_20m states
-   WHERE stusps = $1 
-   ORDER by stusps`.trim()
+  ` SELECT 
+      ST_Simplify(geom,0.25) as geom,
+      stusps, 
+      name,
+      statefp,
+      centroid_longitude,
+      centroid_latitude
+    FROM cb_2018_us_state_20m states
+    WHERE stusps = $1 
+    ORDER by stusps`.trim()
 
   let sql = utils.getGeoJsonSqlFor(sqlRaw)
 

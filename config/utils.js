@@ -100,7 +100,7 @@ const getSqlFor = (type, header) => {
     
     let countiesSql = 
     `SELECT 
-      county.geom,
+      ST_Simplify(county.geom,0.25) as geom,
       county.name,
       max(county.countyfp) as countyfp,
       max(pop.type) as type,
