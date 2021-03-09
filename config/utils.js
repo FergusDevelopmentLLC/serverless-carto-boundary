@@ -1,6 +1,6 @@
 const states = require('./states.js').states
 
-const simplificationParam = .15//0 most detail - 1 less detail
+const simplificationParam = .05//0 most detail - 1 less detail
 
 const isSuspicious = (columns) => {
   return columns.reduce((acc, column) => {
