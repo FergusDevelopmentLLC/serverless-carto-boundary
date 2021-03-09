@@ -17,6 +17,47 @@ const handleError = (error, callback) => {
 
 }
 
+module.exports.getStateForStusps = (event, context, callback) => {
+
+  let sqlRaw = 
+  `SELECT geom, stusps, name, statefp, centroid_longitude, centroid_latitude
+   FROM cb_2018_us_state_20m states
+   WHERE stusps = $1 
+   ORDER by stusps`.trim()
+
+  let sql = utils.getGeoJsonSqlFor(sqlRaw)
+
+  const client = new Client(dbConfig)
+  
+  client.connect()
+    .then(() => {
+      client.query(sql, [event.pathParameters.stusps])
+        .then((res) => {
+          
+          const response = {
+            statusCode: 200,
+            headers: {
+              "Access-Control-Allow-Origin": '*',
+              "Access-Control-Allow-Methods": 'GET'
+            },
+            body: JSON.stringify(res.rows[0]['jsonb_build_object']),
+          }
+
+          callback(null, response)
+          client.end()
+        })
+        .catch((error) => {
+          handleError(`getStateForStusps query error: ${error}`, callback)
+          client.end()
+        })
+    })
+    .catch((error) => {
+      handleError(`getStateForStusps database connection error: ${error}`, callback)
+      client.end()
+    })
+
+ }
+
 module.exports.getStates = (event, context, callback) => {
 
   let sql = 
@@ -49,7 +90,7 @@ module.exports.getStates = (event, context, callback) => {
         })
     })
     .catch((error) => {
-      handleError(`database connection error: ${error}`, callback)
+      handleError(`getStates database connection error: ${error}`, callback)
       client.end()
     })
 
