@@ -18,6 +18,13 @@ functions:
           method: get
           path: /states
 
+  getStateForStusps:
+    handler: handler.getStateForStusps
+    events:
+      - http:
+          method: get
+          path: /states/{stusps}
+
   geoJsonForCsv:
     handler: handler.getGeoJsonForCsv
     events:
