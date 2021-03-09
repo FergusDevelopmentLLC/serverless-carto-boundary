@@ -150,4 +150,4 @@ const getSqlFor = (type, header) => {
   }
 }
 
-module.exports = { isSuspicious, containsLongitudeLatitude, validateType, validateStusps, validateCsvData, getSqlFor }
+module.exports = { isSuspicious, containsLongitudeLatitude, validateType, validateStusps, validateCsvData, getGeoJsonSqlFor, getSqlFor }
