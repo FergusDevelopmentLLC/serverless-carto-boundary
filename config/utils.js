@@ -1,5 +1,7 @@
 const states = require('./states.js').states
 
+const simplificationParam = .15//0 most detail - 1 less detail
+
 const isSuspicious = (columns) => {
   return columns.reduce((acc, column) => {
     if (!column.match(/^[0-9A-Za-z_]+$/)) {
@@ -100,7 +102,7 @@ const getSqlFor = (type, header) => {
     
     let countiesSql = 
     `SELECT 
-      ST_Simplify(county.geom,0.25) as geom,
+      ST_Simplify(county.geom,${ simplificationParam }) as geom,
       county.name,
       max(county.countyfp) as countyfp,
       max(pop.type) as type,
@@ -134,7 +136,7 @@ const getSqlFor = (type, header) => {
     columnsStringWithPrefix = header.map(column => `geo_points.${column}`).join(",")
     let pointsSql = 
       `SELECT
-        geo_points.geom,
+        ST_Simplify(geo_points.geom,${ simplificationParam }) as geom,
         ${columnsStringWithPrefix}
       FROM cb_2018_us_state_20m state
       LEFT JOIN
@@ -150,4 +152,4 @@ const getSqlFor = (type, header) => {
   }
 }
 
-module.exports = { isSuspicious, containsLongitudeLatitude, validateType, validateStusps, validateCsvData, getGeoJsonSqlFor, getSqlFor }
+module.exports = {simplificationParam, isSuspicious, containsLongitudeLatitude, validateType, validateStusps, validateCsvData, getGeoJsonSqlFor, getSqlFor }
