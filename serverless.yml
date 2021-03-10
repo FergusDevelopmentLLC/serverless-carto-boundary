@@ -11,6 +11,13 @@ provider:
 
 functions:
 
+  getDistrictsForState:
+    handler: handler.getDistrictsForState
+    events:
+      - http:
+          method: get
+          path: /districtsForState/{state_abbrev}
+          
   states:
     handler: handler.getStates
     events:
