@@ -16,8 +16,8 @@ functions:
     events:
       - http:
           method: get
-          path: /districtsForState/{state_abbrev}
-          
+          path: /districts/{stusps}
+
   states:
     handler: handler.getStates
     events:
