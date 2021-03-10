@@ -1,4 +1,3 @@
-'use strict';
 const { Client } = require('pg')
 const fastcsv = require('fast-csv')
 const format = require('pg-format')
@@ -7,13 +6,48 @@ const dbConfig = require('./config/db')
 const utils = require('./config/utils.js')
 
 const handleError = (error, callback) => {
-
   const errorResponse = {
     statusCode: error.statusCode || 500,
     body: {Error: error},
   }
-
   callback(null, JSON.stringify(errorResponse))
+}
+
+module.exports.getStates = (event, context, callback) => {
+
+  let sql = 
+  `SELECT stusps, name, statefp, centroid_longitude, centroid_latitude
+   FROM cb_2018_us_state_20m states
+   ORDER by stusps;`.trim()
+
+  const client = new Client(dbConfig)
+  
+  client.connect()
+    .then(() => {
+      client.query(sql, null)
+        .then((res) => {
+          
+          const response = {
+            statusCode: 200,
+            headers: {
+              "Access-Control-Allow-Origin": '*',
+              "Access-Control-Allow-Methods": 'GET'
+            },
+            body: JSON.stringify(res.rows),
+          }
+
+          callback(null, response)
+          client.end()
+        })
+        .catch((error) => {
+          handleError(`getStates query error: ${error}`, callback)
+          client.end()
+        })
+    })
+    .catch((error) => {
+      handleError(`getStates database connection error: ${error}`, callback)
+      client.end()
+    })
 
 }
 
@@ -59,44 +93,6 @@ module.exports.getStateForStusps = (event, context, callback) => {
     })
     .catch((error) => {
       handleError(`getStateForStusps database connection error: ${error}`, callback)
-      client.end()
-    })
-
- }
-
-module.exports.getStates = (event, context, callback) => {
-
-  let sql = 
-  `SELECT stusps, name, statefp, centroid_longitude, centroid_latitude
-   FROM cb_2018_us_state_20m states
-   ORDER by stusps;`.trim()
-
-  const client = new Client(dbConfig)
-  
-  client.connect()
-    .then(() => {
-      client.query(sql, null)
-        .then((res) => {
-          
-          const response = {
-            statusCode: 200,
-            headers: {
-              "Access-Control-Allow-Origin": '*',
-              "Access-Control-Allow-Methods": 'GET'
-            },
-            body: JSON.stringify(res.rows),
-          }
-
-          callback(null, response)
-          client.end()
-        })
-        .catch((error) => {
-          handleError(`getStates query error: ${error}`, callback)
-          client.end()
-        })
-    })
-    .catch((error) => {
-      handleError(`getStates database connection error: ${error}`, callback)
       client.end()
     })
 
@@ -219,7 +215,10 @@ module.exports.getGeoJsonForCsv = (event, context, callback) => {
 
                       countyGeoSQL = countyGeoSQL.replace('#targetTableName', targetTableName)
                       
-                      if(stusps === 'all') countyGeoSQL = countyGeoSQL.replace('AND state.stusps = $1', '')
+                      if(stusps === 'all') {
+                        countyGeoSQL = countyGeoSQL.replace('AND state.stusps = $1', '')
+                        countyGeoSQL = countyGeoSQL.replace('AND pop.statefp = state.statefp', '')
+                      }
                       
                       let stateToPass
                       if(stusps !== 'all') stateToPass = [stusps]
@@ -227,21 +226,20 @@ module.exports.getGeoJsonForCsv = (event, context, callback) => {
                       client.query(countyGeoSQL, stateToPass)
                         .then((counties) => {
 
-                          let geojsonToReturn = counties.rows[0]['jsonb_build_object']//add counties polygons
+                          let countiesGeoJSON = counties.rows[0]['jsonb_build_object']//counties geoJSON polygons
                           
                           let pointsGeoSQL = utils.getSqlFor("point", columns) 
-                          
                           pointsGeoSQL = pointsGeoSQL.replace('#targetTableName', targetTableName)
 
-                          if(stusps === 'all') pointsGeoSQL = pointsGeoSQL.replace('WHERE state.stusps = $1', '')
+                          if(stusps === 'all') pointsGeoSQL = pointsGeoSQL.replace('AND state.stusps = $1', '')
 
                           client.query(pointsGeoSQL, stateToPass)
                             .then((points) => {
 
                               const pointsGeoJSON = points.rows[0]['jsonb_build_object']
 
-                              //combine the counties and points features
-                              geojsonToReturn.features = [...geojsonToReturn.features, ...pointsGeoJSON.features]
+                              //combine the counties and points features, return both polygons (counties) and points (user points)
+                              geojsonToReturn.features = [...countiesGeoJSON.features, ...pointsGeoJSON.features]
 
                               const response = {
                                 statusCode: 200,
