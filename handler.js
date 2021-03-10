@@ -21,13 +21,13 @@ module.exports.getDistrictsForState = (event, context, callback) => {
    JOIN cb_2018_us_cd116_20m districts on districts.statefp = states.statefp
    WHERE stusps = $1`.trim()
 
-  sql = getGeoJsonSqlFor(sql)
+  sql = utils.getGeoJsonSqlFor(sql)
 
   const client = new Client(dbConfig)
   client.connect()
 
   client
-    .query(sql, [event.pathParameters.state_abbrev])
+    .query(sql, [event.pathParameters.stusps])
     .then((res) => {
       
       const response = {
