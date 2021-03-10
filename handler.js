@@ -100,7 +100,63 @@ module.exports.getStates = (event, context, callback) => {
       client.end()
     })
 
- }
+}
+
+module.exports.getCountiesForStusps = (event, context, callback) => {
+
+  let sqlRaw = 
+  `SELECT 
+    county.id,
+    county.geom,
+    round(ST_X(ST_CENTROID(county.geom))::numeric, 3) as centroid_longitude,
+    round(ST_Y(ST_CENTROID(county.geom))::numeric, 3) as centroid_latitude,
+    county.name,
+    county.statefp,
+    county.countyfp,
+    county.countyns,
+    county.affgeoid,
+    county.geoid,
+    county.lsad,
+    county.aland,
+    county.awater,
+    state.name as state_name,
+    state.stusps as state_stusps
+  FROM cb_2018_us_county_20m county
+  JOIN cb_2018_us_state_20m state on state.statefp = county.statefp
+  WHERE state.stusps = $1;`.trim()
+
+  let sql = utils.getGeoJsonSqlFor(sqlRaw)
+
+  const client = new Client(dbConfig)
+  
+  client.connect()
+    .then(() => {
+      client.query(sql, [event.pathParameters.stusps])
+        .then((res) => {
+          
+          const response = {
+            statusCode: 200,
+            headers: {
+              "Access-Control-Allow-Origin": '*',
+              "Access-Control-Allow-Methods": 'GET'
+            },
+            body: JSON.stringify(res.rows),
+          }
+
+          callback(null, response)
+          client.end()
+        })
+        .catch((error) => {
+          handleError(`getStates query error: ${error}`, callback)
+          client.end()
+        })
+    })
+    .catch((error) => {
+      handleError(`getStates database connection error: ${error}`, callback)
+      client.end()
+    })
+
+}
 
 module.exports.getGeoJsonForCsv = (event, context, callback) => {
 
