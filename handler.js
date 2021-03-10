@@ -13,6 +13,42 @@ const handleError = (error, callback) => {
   callback(null, JSON.stringify(errorResponse))
 }
 
+module.exports.getDistrictsForState = (event, context, callback) => {
+
+  let sql = 
+  `SELECT districts.*, states.stusps as state_abbrev, states.name as state_name
+   FROM cb_2018_us_state_20m states
+   JOIN cb_2018_us_cd116_20m districts on districts.statefp = states.statefp
+   WHERE stusps = $1`.trim()
+
+  sql = getGeoJsonSqlFor(sql)
+
+  const client = new Client(dbConfig)
+  client.connect()
+
+  client
+    .query(sql, [event.pathParameters.state_abbrev])
+    .then((res) => {
+      
+      const response = {
+        statusCode: 200,
+        headers: {
+          "Access-Control-Allow-Origin": '*',
+          "Access-Control-Allow-Methods": 'GET'
+        },
+        body: JSON.stringify(res.rows[0]['jsonb_build_object']),
+      }
+
+      callback(null, response)
+      client.end()
+    })
+    .catch((error) => {
+      handleError(`getDistrictsForState query error: ${error}`, callback)
+      client.end()
+    })
+}
+
+
 module.exports.getStates = (event, context, callback) => {
 
   let sql = 
