@@ -146,7 +146,8 @@ const getSqlFor = (type, header) => {
             ${columnsStringWithoutPrefix}
           FROM #targetTableName
         ) AS geo_points on ST_WITHIN(geo_points.geom, state.geom)
-      WHERE state.stusps = $1`
+      WHERE 1 = 1
+      AND state.stusps = $1`
 
     return getGeoJsonSqlFor(pointsSql)
   }
