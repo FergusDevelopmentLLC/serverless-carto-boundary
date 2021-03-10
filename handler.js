@@ -239,7 +239,7 @@ module.exports.getGeoJsonForCsv = (event, context, callback) => {
                               const pointsGeoJSON = points.rows[0]['jsonb_build_object']
 
                               //combine the counties and points features, return both polygons (counties) and points (user points)
-                              geojsonToReturn.features = [...countiesGeoJSON.features, ...pointsGeoJSON.features]
+                              countiesGeoJSON.features = [...countiesGeoJSON.features, ...pointsGeoJSON.features]
 
                               const response = {
                                 statusCode: 200,
