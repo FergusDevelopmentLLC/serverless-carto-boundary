@@ -247,7 +247,7 @@ module.exports.getGeoJsonForCsv = (event, context, callback) => {
                                   "Access-Control-Allow-Origin": '*',
                                   "Access-Control-Allow-Methods": 'GET'
                                 },
-                                body: JSON.stringify(geojsonToReturn),
+                                body: JSON.stringify(countiesGeoJSON),
                               }
 
                               callback(null, response)
