@@ -107,7 +107,7 @@ module.exports.getCountiesForStusps = (event, context, callback) => {
   let sqlRaw = 
   `SELECT 
     county.id,
-    county.geom,
+    ST_MakePoint(ST_X(ST_CENTROID(county.geom)), ST_Y(ST_CENTROID(county.geom))) as geom,
     round(ST_X(ST_CENTROID(county.geom))::numeric, 3) as centroid_longitude,
     round(ST_Y(ST_CENTROID(county.geom))::numeric, 3) as centroid_latitude,
     county.name,
@@ -124,7 +124,7 @@ module.exports.getCountiesForStusps = (event, context, callback) => {
   FROM cb_2018_us_county_20m county
   JOIN cb_2018_us_state_20m state on state.statefp = county.statefp
   WHERE state.stusps = $1;`.trim()
-
+  
   let sql = utils.getGeoJsonSqlFor(sqlRaw)
 
   const client = new Client(dbConfig)
@@ -140,7 +140,7 @@ module.exports.getCountiesForStusps = (event, context, callback) => {
               "Access-Control-Allow-Origin": '*',
               "Access-Control-Allow-Methods": 'GET'
             },
-            body: JSON.stringify(res.rows),
+            body: JSON.stringify(res.rows[0]['jsonb_build_object']),
           }
 
           callback(null, response)
