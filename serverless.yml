@@ -1,6 +1,6 @@
 service: aws-postgres-serverless
 
-frameworkVersion: '2'
+frameworkVersion: '3.21.0'
 
 provider:
   name: aws
@@ -8,6 +8,8 @@ provider:
   runtime: nodejs12.x
   lambdaHashingVersion: 20201221
   timeout: 30
+  deploymentBucket:
+    name: aws-postgres-serverless-bucket
 
 functions:
 
@@ -48,3 +50,4 @@ functions:
 
 plugins:
   - serverless-offline
+  - serverless-deployment-bucket

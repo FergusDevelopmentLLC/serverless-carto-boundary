@@ -48,7 +48,6 @@ module.exports.getDistrictsForState = (event, context, callback) => {
     })
 }
 
-
 module.exports.getStates = (event, context, callback) => {
 
   let sql = 
