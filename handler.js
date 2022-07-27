@@ -192,7 +192,6 @@ module.exports.getCountiesForStusps = (event, context, callback) => {
 module.exports.getGeoJsonForCsv = (event, context, callback) => {
 
   const body = JSON.parse(event.body)
-
   const data_description = body.data_description
   const stusps = body.stusps
   const csvUrl = body.csvUrl
@@ -237,7 +236,7 @@ module.exports.getGeoJsonForCsv = (event, context, callback) => {
           client.query(`CREATE TABLE ${targetTableName} ( ${createTableColumnStr } ) WITH ( OIDS=FALSE );`)
             .then(() => {
               
-              client.query(`ALTER TABLE ${targetTableName} OWNER TO awspostgres;`)
+              client.query(`ALTER TABLE ${targetTableName} OWNER TO postgres;`)
                 .then(() => { 
 
                   const columnsStringWithoutPrefix = columns.map(column => `${column}`).join(",")
@@ -280,7 +279,7 @@ module.exports.getGeoJsonForCsv = (event, context, callback) => {
                                 statusCode: 200,
                                 headers: {
                                   "Access-Control-Allow-Origin": '*',
-                                  "Access-Control-Allow-Methods": 'GET'
+                                  "Access-Control-Allow-Methods": 'GET, POST'
                                 },
                                 body: JSON.stringify(countiesGeoJSON),
                               }
