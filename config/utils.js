@@ -126,7 +126,7 @@ const getSqlFor = (type, header) => {
     JOIN cb_2018_us_state_20m state on state.statefp = county.statefp
     WHERE 1 = 1 
     AND state.stusps = $1
-    --AND pop.statefp = state.statefp
+    AND pop.statefp = state.statefp
     GROUP BY county.geom, county.name
     ORDER BY persons_per_point desc`
 
